@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Music Player</title>
+
+        <!-- font awesome  -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css"
+            integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
+
+        <!-- css  -->
+        <link rel="stylesheet" href="./music-player.css" />
+    </head>
+    <body>
+        <main>
+            <div class="player">
+                <div class="dashboard">
+                    <header>
+                        <h2 class="desc">Now Playing:</h2>
+                        <h3 class="song-title">Song Title</h3>
+                        <p class="song-artist">Song Artist</p>
+                    </header>
+
+                    <!-- CD -->
+                    <div class="cd">
+                        <img class="cd-thumb" src="" alt="" />
+                    </div>
+
+                    <!-- control buttons  -->
+                    <div class="control">
+                        <button class="btn repeat-btn">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
+                        <button class="btn prev-btn">
+                            <i class="fa-solid fa-backward-step"></i>
+                        </button>
+                        <button class="btn play-pause-btn">
+                            <i class="play-pause-icon fa-solid fa-play"></i>
+                            <!-- <i class="fa-solid fa-pause"></i> -->
+                        </button>
+                        <button class="btn next-btn">
+                            <i class="fa-solid fa-forward-step"></i>
+                        </button>
+                        <button class="btn shuffle-btn">
+                            <i class="fa-solid fa-shuffle"></i>
+                        </button>
+                    </div>
+
+                    <!-- progress bar -->
+
+                    <div class="progress-bar-container">
+                        <span class="elapsed-time">00:00</span>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar">
+                                <div class="inner-progress-bar"></div>
+                            </div>
+                            <div class="slider"></div>
+                        </div>
+                        <span class="total-duration">00:00</span>
+                    </div>
+
+                    <!-- audio  -->
+                    <audio class="audio" src=""></audio>
+                </div>
+
+                <!-- playlist  -->
+                <ul class="playlist">
+                    <li class="song active" data-index="0">
+                        <img
+                            class="cover-art"
+                            src="./assets/default-covert-art-1.jpg"
+                            alt=""
+                        />
+                        <div class="song-info">
+                            <h3 class="song-title">
+                                Lorem ipsum dolor sit amet consectetur
+                                adipisicing elit. Tempora, repudiandae.
+                            </h3>
+                            <p class="song-artist">
+                                Lorem ipsum dolor sit amet consectetur
+                                adipisicing elit. Totam, fuga!
+                            </p>
+                        </div>
+                        <button class="option">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </li>
+                    <!-- more  -->
+                </ul>
+            </div>
+        </main>
+
+        <!-- jsmediatags library  -->
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"
+            integrity="sha512-YsR46MmyChktsyMMou+Bs74oCa/CDdwft7rJ5wlnmDzMj1mzqncsfJamEEf99Nk7IB0JpTMo5hS8rxB49FUktQ=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+        <script src="./music-player.js"></script>
+    </body>
+</html>
