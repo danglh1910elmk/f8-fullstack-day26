@@ -1,3 +1,8 @@
+// tính năng:
+// play/pause/next/prev/repeat/shuffle
+// trích xuất metadata của audio file dùng thư viện jsmediatags (chatgpt)
+// phím tắt để play/pause, chuyển bài
+
 const $ = document.querySelector.bind(document);
 const $$ = document.querySelectorAll.bind(document);
 
@@ -10,9 +15,10 @@ const player = {
 
     playlist: $(".playlist"),
     songTitle: $(".song-title"),
+    songArtist: $(".song-artist"),
     cdThumb: $(".cd-thumb"),
     audioElement: $(".audio"),
-    togglePlayBtn: $(".toggle-play-btn"),
+    playPauseBtn: $(".play-pause-btn"),
     playPauseIcon: $(".play-pause-icon"),
     prevBtn: $(".prev-btn"),
     nextBtn: $(".next-btn"),
@@ -28,6 +34,7 @@ const player = {
         "./musics/Hey Daddy (Daddy's Home).mp3",
         "./musics/So Far Away.mp3",
         "./musics/Những Lời Hứa Bỏ Quên.mp3",
+        "./musics/Chờ Anh Nhé.mp3",
         "./musics/Phố Không Em.mp3",
         "./musics/Stereo Love (Original).mp3",
         "./musics/EmSeVuiThoiMa.mp3",
@@ -39,8 +46,10 @@ const player = {
 
     songs: [],
     playedSongIndexes: [],
+    unplayedSongIndexes: [],
 
     currentIndex: 0,
+    shuffleIndex: 0,
     isSeeking: false,
     isRepeated: localStorage.getItem("isRepeated") === "true",
     isShuffled: localStorage.getItem("isShuffled") === "true",
@@ -115,6 +124,14 @@ const player = {
         console.log("Playlist built successfully:", this.songs);
     },
 
+    createArray(n) {
+        return Array(n)
+            .fill(0)
+            .map((_, i) => i);
+    },
+
+    shuffleArray() {},
+
     getProgressBarCoord(element) {
         const rect = element.getBoundingClientRect();
         return [rect.left, rect.left + element.offsetWidth];
@@ -136,258 +153,367 @@ const player = {
         const currentSong = this.songs[this.currentIndex];
         // update song title
         this.songTitle.textContent = currentSong.title;
+        // update song artist
+        this.songArtist.textContent = currentSong.artist;
         // update cd thumbnail
         this.cdThumb.src = currentSong.coverArtUrl;
         // update audio source
         this.audioElement.src = currentSong.path;
         // update duration
-        // this.duration.textContent = this.audioElement.duration;
-        setTimeout(() => {
-            this.totalDuration.textContent = this.formatTime(
-                this.audioElement.duration
-            );
-        }, 200);
+        this.audioElement.addEventListener(
+            "loadedmetadata",
+            () => {
+                this.totalDuration.textContent = this.formatTime(
+                    this.audioElement.duration
+                );
+            },
+            { once: true }
+        );
+    },
+
+    playCurrentSong() {
+        this.loadCurrentSong();
+        this.renderPlaylist();
+        this.audioElement.play();
+
+        // stop rotating cd-thumb
+        this.cdThumb.classList.remove("playing");
     },
 
     switchSong(direction) {
         if (this.isShuffled) {
-            // logic
+            // bật shuffle thì phát các bài với index trong unplayedSongIndexes
+            if (this.unplayedSongIndexes.length) {
+                this.currentIndex = this.unplayedSongIndexes[this.shuffleIndex];
+                this.playCurrentSong();
+
+                this.shuffleIndex++;
+            } else {
+                // this.unplayedSongIndexes.length === 0 --> tất cả đã được phát
+                // reset mảng unplayedSongIndexes
+                this.unplayedSongIndexes = this.createArray(this.songs.length);
+
+                // xóa phần tử currentIndex hiện tại khỏi mảng unplayedSongIndexes
+                const index = this.unplayedSongIndexes.indexOf(
+                    this.currentIndex
+                );
+                if (index !== -1) {
+                    this.unplayedSongIndexes.splice(index, 1);
+                }
+            }
         } else {
             // không bật shuffle
             this.currentIndex =
                 (this.currentIndex + direction + this.songs.length) %
                 this.songs.length;
+
+            // xóa phần tử currentIndex khỏi mảng unplayedSongIndexes
+            const index = this.unplayedSongIndexes.indexOf(this.currentIndex);
+            if (index !== -1) {
+                this.unplayedSongIndexes.splice(index, 1);
+            }
         }
 
         this.loadCurrentSong();
         this.renderPlaylist();
         this.audioElement.play();
+
         // stop rotating cd-thumb
         this.cdThumb.classList.remove("playing");
     },
 
-    handleEvents() {
-        //
+    // handlers
+    handlePlayPauseClick() {
+        if (this.audioElement.paused) {
+            this.audioElement.play();
+        } else {
+            this.audioElement.pause();
+        }
     },
 
-    async init() {
+    handleAudioPlay() {
+        this.playPauseIcon.classList.add("fa-pause");
+        this.playPauseIcon.classList.remove("fa-play");
+
+        this.cdThumb.classList.add("playing");
+        this.cdThumb.style.animationPlayState = "running"; // rotate cd-thumb
+    },
+
+    handleAudioPause() {
+        this.playPauseIcon.classList.add("fa-play");
+        this.playPauseIcon.classList.remove("fa-pause");
+
+        this.cdThumb.style.animationPlayState = "paused"; // pause rotating cd-thumb
+    },
+
+    handlePreviousClick() {
+        // nhạc phát được ít hơn 2s thì chuyển bài
+        // nhạc phát được nhiều hơn 2s thì phát lại
+        if (this.audioElement.currentTime > this.REPLAY_THRESHOLD) {
+            this.audioElement.currentTime = 0;
+        } else {
+            this.switchSong(this.PREV);
+        }
+    },
+
+    handleNextClick() {
+        this.switchSong(this.NEXT);
+    },
+
+    handleAudioTimeUpdate() {
+        const { duration, currentTime } = this.audioElement;
+
+        // vì khi file chưa load xong, giá trị ban đầu duration là NaN
+        // hoặc người dùng đang tua thì không update progress bar
+        if (!duration || this.isSeeking) return;
+
+        // update elapsedTime
+        this.elapsedTime.textContent = this.formatTime(
+            this.audioElement.currentTime
+        );
+
+        const progressbarWidth = this.progressBar.offsetWidth;
+
+        // quãng đường inner progressbar và slider cần di chuyển
+        const distanceX = progressbarWidth * (currentTime / duration); // pixel
+
+        // move innerProgressBar
+        this.innerProgressBar.style.translate = `${
+            distanceX - progressbarWidth
+        }px`;
+
+        // update slider position
+        this.slider.style.left = `${distanceX}px`;
+    },
+
+    handleProgressBarMouseDown() {
+        this.isSeeking = true;
+
+        // style innerProgressBar + slider
+        this.innerProgressBar.style.background = "#ec1f55"; // #1db954
+        this.slider.style.visibility = "visible";
+    },
+
+    handleDocumentMouseUp(e) {
+        if (this.isSeeking) {
+            // reset style for innerProgressBar + slider
+            this.innerProgressBar.style.background = null;
+            this.slider.style.visibility = null;
+
+            // tính toán audio.currentTime dựa trên vị trí nhả chuột
+            let progressPercentage;
+            const currentXCoord = e.clientX;
+            const progressbarWidth = this.progressBar.offsetWidth;
+
+            // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
+            // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
+            const [leftProgressBarCoord, rightProgressBarCoord] =
+                this.getProgressBarCoord(this.progressBar);
+
+            if (currentXCoord < leftProgressBarCoord) {
+                progressPercentage = 0;
+            } else if (currentXCoord > rightProgressBarCoord) {
+                progressPercentage = 100;
+            } else {
+                progressPercentage =
+                    ((currentXCoord - leftProgressBarCoord) * 100) /
+                    progressbarWidth;
+            }
+
+            // update audio currentTime
+            this.audioElement.currentTime =
+                (progressPercentage * this.audioElement.duration) / 100;
+        }
+
+        this.isSeeking = false;
+    },
+
+    handleDocumentMouseMove(e) {
+        if (this.isSeeking) {
+            const currentXCoord = e.clientX; // tọa độ chuột trục X
+            const progressbarWidth = this.progressBar.offsetWidth;
+
+            // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
+            // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
+            const [leftProgressBarCoord, rightProgressBarCoord] =
+                this.getProgressBarCoord(this.progressBar);
+
+            // quãng đường cần di chuyển cho innerProgressBar và slider
+            const distanceX = currentXCoord - leftProgressBarCoord;
+
+            // tọa độ chuột trong khoảng cho phép thì di chuyển innerProgressBar và slider
+            // tọa độ điểm đầu progressBar <= currentXCoord <= tọa độ điểm cuối progressBar
+            if (
+                currentXCoord >= leftProgressBarCoord &&
+                currentXCoord <= rightProgressBarCoord
+            ) {
+                // di chuyển innerProgressBar
+                this.innerProgressBar.style.translate = `${
+                    distanceX - progressbarWidth
+                }px`;
+                // update slider position
+                this.slider.style.left = `${distanceX}px`;
+                // update elapsedTime
+                this.elapsedTime.textContent = this.formatTime(
+                    (this.audioElement.duration * distanceX) / progressbarWidth
+                );
+            }
+        }
+    },
+
+    handleRepeatClick() {
+        this.isRepeated = !this.isRepeated;
+        // change icon style
+        this.repeatBtn.classList.toggle("active", this.isRepeated);
+        // save to localStorage
+        localStorage.setItem("isRepeated", this.isRepeated);
+    },
+
+    handleAudioEnded() {
+        if (this.isRepeated) {
+            this.audioElement.play();
+        } else {
+            this.switchSong(this.NEXT);
+        }
+    },
+
+    handleShuffleClick() {
+        this.isShuffled = !this.isShuffled;
+        // change icon style
+        this.shuffleBtn.classList.toggle("active", this.isShuffled);
+        // save to localStorage
+        localStorage.setItem("isShuffled", this.isShuffled);
+
+        if (this.isShuffled) {
+            // enabled
+        } else {
+            // disabled
+            // reset shuffleIndex
+            this.shuffleIndex = 0;
+        }
+    },
+
+    handlePlaylistClick(e) {
+        const song = e.target.closest(".song");
+        if (!song) return;
+
+        this.currentIndex = +song.dataset.index; // convert to number
+
+        // xóa phần tử currentIndex hiện tại khỏi mảng unplayedSongIndexes
+        const index = this.unplayedSongIndexes.indexOf(this.currentIndex);
+        if (index !== -1) {
+            this.unplayedSongIndexes.splice(index, 1);
+        }
+        // this.loadCurrentSong();
+        // this.renderPlaylist();
+        // this.audioElement.play();
+        // this.switchSong(0);
+        this.playCurrentSong();
+    },
+
+    handleDocumentKeyDown(e) {
+        if (e.key === " ") {
+            e.preventDefault(); // ngăn chặn hành vi cuộn khi nhấn space
+            if (this.audioElement.paused) {
+                this.audioElement.play();
+            } else {
+                this.audioElement.pause();
+            }
+        } else if (e.key === "ArrowLeft") {
+            this.switchSong(this.PREV);
+        } else if (e.key === "ArrowRight") {
+            this.switchSong(this.NEXT);
+        }
+    },
+
+    setupEventListeners() {
+        this.playPauseBtn.addEventListener("click", () => {
+            this.handlePlayPauseClick();
+        });
+
+        // change icons when playing + rotate cd-thumb
+        this.audioElement.addEventListener("play", () => {
+            this.handleAudioPlay();
+        });
+
+        // change icons when pausing + pause rotating cd-thumb
+        this.audioElement.addEventListener("pause", () => {
+            this.handleAudioPause();
+        });
+
+        // prev, next button
+        this.prevBtn.addEventListener("click", () => {
+            this.handlePreviousClick();
+        });
+        this.nextBtn.addEventListener("click", () => {
+            this.handleNextClick();
+        });
+
+        // --- CUSTOM PROGRESS BAR ---
+        // update progress bar
+        this.audioElement.addEventListener("timeupdate", () => {
+            this.handleAudioTimeUpdate();
+        });
+
+        // REWIND/FORWARD FEATURE
+        this.progressBar.addEventListener("mousedown", () => {
+            this.handleProgressBarMouseDown();
+        });
+
+        document.addEventListener("mouseup", (e) => {
+            this.handleDocumentMouseUp(e);
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            this.handleDocumentMouseMove(e);
+        });
+
+        // repeat button
+        this.repeatBtn.addEventListener("click", () => {
+            this.handleRepeatClick();
+        });
+
+        // when a song ends
+        this.audioElement.addEventListener("ended", () => {
+            this.handleAudioEnded();
+        });
+
+        // shuffle button
+        this.shuffleBtn.addEventListener("click", () => {
+            this.handleShuffleClick();
+        });
+
+        this.playlist.addEventListener("click", (e) => {
+            this.handlePlaylistClick(e);
+        });
+
+        // shortcut
+        document.addEventListener("keydown", (e) => {
+            this.handleDocumentKeyDown(e);
+        });
+    },
+
+    async initialize() {
         // Build the playlist first
         await this.buildPlaylist();
 
         // Once the playlist is built, load the first song and render the UI
         if (this.songs.length <= 0) return;
 
+        // khởi tạo unplayedSongIndexes
+        this.unplayedSongIndexes = this.createArray(this.songs.length);
+        this.unplayedSongIndexes.shift();
+
+        this.loadCurrentSong();
+
+        this.setupEventListeners();
+
+        this.renderPlaylist();
+
         // update repeat button state
         this.repeatBtn.classList.toggle("active", this.isRepeated);
         // update shuffle button state
         this.shuffleBtn.classList.toggle("active", this.isShuffled);
-
-        this.loadCurrentSong();
-
-        this.handleEvents();
-
-        this.renderPlaylist();
-
-        // ---------------------------------------------------
-
-        // ===== EVENT LISTENERS =====
-        this.togglePlayBtn.addEventListener("click", () => {
-            if (this.audioElement.paused) {
-                this.audioElement.play();
-            } else {
-                this.audioElement.pause();
-            }
-        });
-
-        // change icons when playing/pausing
-        this.audioElement.addEventListener("play", () => {
-            this.playPauseIcon.classList.add("fa-pause");
-            this.playPauseIcon.classList.remove("fa-play");
-
-            this.cdThumb.classList.add("playing");
-            this.cdThumb.style.animationPlayState = "running"; // rotate cd-thumb
-        });
-        this.audioElement.addEventListener("pause", () => {
-            this.playPauseIcon.classList.add("fa-play");
-            this.playPauseIcon.classList.remove("fa-pause");
-
-            this.cdThumb.style.animationPlayState = "paused"; // pause rotating cd-thumb
-        });
-
-        // prev, next button
-        this.prevBtn.addEventListener("click", () => {
-            // nhạc phát được ít hơn 2s thì chuyển bài
-            // nhạc phát được nhiều hơn 2s thì phát lại
-            if (this.audioElement.currentTime > this.REPLAY_THRESHOLD) {
-                this.audioElement.currentTime = 0;
-            } else {
-                this.switchSong(this.PREV);
-            }
-        });
-        this.nextBtn.addEventListener("click", () => {
-            this.switchSong(this.NEXT);
-        });
-
-        // --- CUSTOM PROGRESS BAR ---
-        // update progress bar
-        this.audioElement.addEventListener("timeupdate", () => {
-            const { duration, currentTime } = this.audioElement;
-
-            // vì giá trị ban đầu duration là NaN -> phải lọc bỏ case này.
-            // hoặc người dùng đang tua thì không update progress bar
-            if (!duration || this.isSeeking) return;
-
-            // update elapsedTime
-            this.elapsedTime.textContent = this.formatTime(
-                this.audioElement.currentTime
-            );
-
-            const progressbarWidth = this.progressBar.offsetWidth;
-
-            // quãng đường inner progressbar và slider cần di chuyển
-            const distanceX = progressbarWidth * (currentTime / duration); // pixel
-
-            // move innerProgressBar
-            this.innerProgressBar.style.translate = `${
-                distanceX - progressbarWidth
-            }px`;
-
-            // update slider position
-            this.slider.style.left = `${distanceX}px`;
-        });
-
-        // REWIND/FORWARD FEATURE
-        this.progressBar.addEventListener("mousedown", () => {
-            this.isSeeking = true;
-
-            // style innerProgressBar + slider
-            this.innerProgressBar.style.background = "#ec1f55"; // #1db954
-            this.slider.style.visibility = "visible";
-        });
-
-        document.addEventListener("mouseup", (e) => {
-            if (this.isSeeking) {
-                // reset style for innerProgressBar + slider
-                this.innerProgressBar.style.background = null;
-                this.slider.style.visibility = null;
-
-                // tính toán audio.currentTime dựa trên vị trí nhả chuột
-                let progressPercentage;
-                const currentXCoord = e.clientX;
-                const progressbarWidth = this.progressBar.offsetWidth;
-
-                // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
-                // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
-                const [leftProgressBarCoord, rightProgressBarCoord] =
-                    this.getProgressBarCoord(this.progressBar);
-
-                if (currentXCoord < leftProgressBarCoord) {
-                    progressPercentage = 0;
-                } else if (currentXCoord > rightProgressBarCoord) {
-                    progressPercentage = 100;
-                } else {
-                    progressPercentage =
-                        ((currentXCoord - leftProgressBarCoord) * 100) /
-                        progressbarWidth;
-                }
-
-                // update audio currentTime
-                this.audioElement.currentTime =
-                    (progressPercentage * this.audioElement.duration) / 100;
-            }
-
-            this.isSeeking = false;
-        });
-
-        document.addEventListener("mousemove", (e) => {
-            if (this.isSeeking) {
-                const currentXCoord = e.clientX; // tọa độ chuột trục X
-                const progressbarWidth = this.progressBar.offsetWidth;
-
-                // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
-                // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
-                const [leftProgressBarCoord, rightProgressBarCoord] =
-                    this.getProgressBarCoord(this.progressBar);
-
-                // quãng đường cần di chuyển cho innerProgressBar và slider
-                const distanceX = currentXCoord - leftProgressBarCoord;
-
-                // tọa độ chuột trong khoảng cho phép thì di chuyển innerProgressBar và slider
-                // tọa độ điểm đầu progressBar <= currentXCoord <= tọa độ điểm cuối progressBar
-                if (
-                    currentXCoord >= leftProgressBarCoord &&
-                    currentXCoord <= rightProgressBarCoord
-                ) {
-                    // di chuyển innerProgressBar
-                    this.innerProgressBar.style.translate = `${
-                        distanceX - progressbarWidth
-                    }px`;
-                    // update slider position
-                    this.slider.style.left = `${distanceX}px`;
-                    // update elapsedTime
-                    this.elapsedTime.textContent = this.formatTime(
-                        (this.audioElement.duration * distanceX) /
-                            progressbarWidth
-                    );
-                }
-            }
-        });
-
-        // repeat button
-        this.repeatBtn.addEventListener("click", () => {
-            this.isRepeated = !this.isRepeated;
-            // change icon style
-            this.repeatBtn.classList.toggle("active", this.isRepeated);
-            // save to localStorage
-            localStorage.setItem("isRepeated", this.isRepeated);
-        });
-
-        // when a song ends
-        this.audioElement.addEventListener("ended", () => {
-            if (this.isRepeated) {
-                this.audioElement.play();
-            } else {
-                this.switchSong(this.NEXT);
-            }
-        });
-
-        // shuffle button
-        this.shuffleBtn.addEventListener("click", () => {
-            this.isShuffled = !this.isShuffled;
-            // change icon style
-            this.shuffleBtn.classList.toggle("active", this.isShuffled);
-            // save to localStorage
-            localStorage.setItem("isShuffled", this.isShuffled);
-        });
-
-        //
-        this.playlist.addEventListener("click", (e) => {
-            const song = e.target.closest(".song");
-            if (!song) return;
-
-            this.currentIndex = +song.dataset.index; // convert to number
-            // this.loadCurrentSong();
-            // this.renderPlaylist();
-            // this.audioElement.play();
-            this.switchSong(0);
-        });
-
-        // shortcut
-        document.addEventListener("keydown", (e) => {
-            console.log(e.key);
-            if (e.key === " ") {
-                e.preventDefault();
-                if (this.audioElement.paused) {
-                    this.audioElement.play();
-                } else {
-                    this.audioElement.pause();
-                }
-            } else if (e.key === "ArrowLeft") {
-                this.switchSong(this.PREV);
-            } else if (e.key === "ArrowRight") {
-                this.switchSong(this.NEXT);
-            }
-        });
     },
 
     renderPlaylist() {
@@ -428,4 +554,4 @@ const player = {
     },
 };
 
-player.init();
+player.initialize();

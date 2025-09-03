@@ -1,3 +1,8 @@
+// tính năng:
+// play/pause/next/prev/repeat/shuffle
+// trích xuất metadata của audio file dùng thư viện jsmediatags (chatgpt)
+// phím tắt để play/pause, chuyển bài
+
 const $ = document.querySelector.bind(document);
 const $$ = document.querySelectorAll.bind(document);
 
@@ -40,9 +45,9 @@ const player = {
     ],
 
     songs: [],
-    playedSongIndexes: [],
 
     currentIndex: 0,
+    shuffleIndex: 0,
     isSeeking: false,
     isRepeated: localStorage.getItem("isRepeated") === "true",
     isShuffled: localStorage.getItem("isShuffled") === "true",
@@ -145,31 +150,35 @@ const player = {
         // update audio source
         this.audioElement.src = currentSong.path;
         // update duration
-        setTimeout(() => {
-            this.totalDuration.textContent = this.formatTime(
-                this.audioElement.duration
-            );
-        }, 200);
+        this.audioElement.addEventListener(
+            "loadedmetadata",
+            () => {
+                this.totalDuration.textContent = this.formatTime(
+                    this.audioElement.duration
+                );
+            },
+            { once: true }
+        );
     },
 
-    switchSong(direction) {
-        if (this.isShuffled) {
-            // logic
-        } else {
-            // không bật shuffle
-            this.currentIndex =
-                (this.currentIndex + direction + this.songs.length) %
-                this.songs.length;
-        }
-
+    loadRenderAndPlay() {
         this.loadCurrentSong();
         this.renderPlaylist();
         this.audioElement.play();
+
         // stop rotating cd-thumb
         this.cdThumb.classList.remove("playing");
     },
 
-    // listeners / handlers
+    switchSong(direction) {
+        this.currentIndex =
+            (this.currentIndex + direction + this.songs.length) %
+            this.songs.length;
+
+        this.loadRenderAndPlay();
+    },
+
+    // handlers
     handlePlayPauseClick() {
         if (this.audioElement.paused) {
             this.audioElement.play();
@@ -210,7 +219,7 @@ const player = {
     handleAudioTimeUpdate() {
         const { duration, currentTime } = this.audioElement;
 
-        // vì giá trị ban đầu duration là NaN -> phải lọc bỏ case này.
+        // vì khi file chưa load xong, giá trị ban đầu duration là NaN
         // hoặc người dùng đang tua thì không update progress bar
         if (!duration || this.isSeeking) return;
 
@@ -337,10 +346,8 @@ const player = {
         if (!song) return;
 
         this.currentIndex = +song.dataset.index; // convert to number
-        // this.loadCurrentSong();
-        // this.renderPlaylist();
-        // this.audioElement.play();
-        this.switchSong(0);
+
+        this.loadRenderAndPlay();
     },
 
     handleDocumentKeyDown(e) {
@@ -358,7 +365,7 @@ const player = {
         }
     },
 
-    handleEvents() {
+    setupEventListeners() {
         this.playPauseBtn.addEventListener("click", () => {
             this.handlePlayPauseClick();
         });
@@ -415,7 +422,6 @@ const player = {
             this.handleShuffleClick();
         });
 
-        //
         this.playlist.addEventListener("click", (e) => {
             this.handlePlaylistClick(e);
         });
@@ -435,7 +441,7 @@ const player = {
 
         this.loadCurrentSong();
 
-        this.handleEvents();
+        this.setupEventListeners();
 
         this.renderPlaylist();
 
