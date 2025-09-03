@@ -32,22 +32,21 @@ const player = {
 
     songPaths: [
         "./musics/Hey Daddy (Daddy's Home).mp3",
-        "./musics/So Far Away.mp3",
+        // "./musics/So Far Away.mp3",
         "./musics/Những Lời Hứa Bỏ Quên.mp3",
-        "./musics/Chờ Anh Nhé.mp3",
         "./musics/Phố Không Em.mp3",
-        "./musics/Stereo Love (Original).mp3",
+        "./musics/Chờ Anh Nhé.mp3",
+        // "./musics/Stereo Love (Original).mp3",
         "./musics/EmSeVuiThoiMa.mp3",
         "./musics/KeoBonMua.mp3",
         "./musics/ThichEmNhungMaKhoanYeu.mp3",
-        "./musics/Kho Báu (with Rhymastic).mp3",
         "./musics/Yêu Em Dài Lâu - Yêu 5.mp3",
     ],
 
     songs: [],
+    unplayedSongIndexes: [],
 
     currentIndex: 0,
-    shuffleIndex: 0,
     isSeeking: false,
     isRepeated: localStorage.getItem("isRepeated") === "true",
     isShuffled: localStorage.getItem("isShuffled") === "true",
@@ -122,6 +121,20 @@ const player = {
         console.log("Playlist built successfully:", this.songs);
     },
 
+    createArray(n) {
+        return Array(n)
+            .fill(0)
+            .map((_, i) => i);
+    },
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    },
+
     getProgressBarCoord(element) {
         const rect = element.getBoundingClientRect();
         return [rect.left, rect.left + element.offsetWidth];
@@ -170,15 +183,51 @@ const player = {
         this.cdThumb.classList.remove("playing");
     },
 
-    switchSong(direction) {
-        this.currentIndex =
-            (this.currentIndex + direction + this.songs.length) %
-            this.songs.length;
+    removeElementFromUnplayedSongIndexes(element) {
+        const index = this.unplayedSongIndexes.indexOf(element);
+        if (index !== -1) {
+            this.unplayedSongIndexes.splice(index, 1);
+        }
+    },
 
+    switchSong(direction) {
+        if (this.isShuffled) {
+            // bật shuffle thì phát các bài có index trong unplayedSongIndexes
+            if (this.unplayedSongIndexes.length) {
+                // gán currentIndex = phần tử đầu tiên của unplayedSongIndexes, xong rồi xóa luôn
+                this.currentIndex = this.unplayedSongIndexes[0];
+
+                // xóa phần tử đầu tiên của mảng unplayedSongIndexes
+                this.unplayedSongIndexes.splice(0, 1);
+            } else {
+                // khi this.unplayedSongIndexes.length === 0 --> tất cả đã được phát
+
+                // reset mảng unplayedSongIndexes
+                this.unplayedSongIndexes = this.createArray(this.songs.length);
+
+                // xóa phần tử currentIndex hiện tại khỏi mảng unplayedSongIndexes
+                this.removeElementFromUnplayedSongIndexes(this.currentIndex);
+
+                // shuffle
+                this.shuffleArray(this.unplayedSongIndexes);
+
+                // gán currentIndex = phần tử đầu tiên của unplayedSongIndexes, xong rồi xóa luôn
+                this.currentIndex = this.unplayedSongIndexes[0];
+                this.removeElementFromUnplayedSongIndexes(this.currentIndex);
+            }
+        } else {
+            // không bật shuffle
+            this.currentIndex =
+                (this.currentIndex + direction + this.songs.length) %
+                this.songs.length;
+
+            // xóa phần tử currentIndex khỏi mảng unplayedSongIndexes
+            this.removeElementFromUnplayedSongIndexes(this.currentIndex);
+        }
         this.loadRenderAndPlay();
     },
 
-    // handlers
+    // ===== HANDLERS =====
     handlePlayPauseClick() {
         if (this.audioElement.paused) {
             this.audioElement.play();
@@ -214,6 +263,8 @@ const player = {
 
     handleNextClick() {
         this.switchSong(this.NEXT);
+
+        console.log("click: ", Math.random());
     },
 
     handleAudioTimeUpdate() {
@@ -339,6 +390,15 @@ const player = {
         this.shuffleBtn.classList.toggle("active", this.isShuffled);
         // save to localStorage
         localStorage.setItem("isShuffled", this.isShuffled);
+
+        if (this.isShuffled) {
+            // enabled
+            this.shuffleArray(this.unplayedSongIndexes);
+        } else {
+            // disabled
+            // reset mảng unplayedSongIndexes
+            this.unplayedSongIndexes = this.createArray(this.songs.length);
+        }
     },
 
     handlePlaylistClick(e) {
@@ -346,6 +406,9 @@ const player = {
         if (!song) return;
 
         this.currentIndex = +song.dataset.index; // convert to number
+
+        // xóa phần tử currentIndex hiện tại khỏi mảng unplayedSongIndexes
+        this.removeElementFromUnplayedSongIndexes(this.currentIndex);
 
         this.loadRenderAndPlay();
     },
@@ -422,6 +485,7 @@ const player = {
             this.handleShuffleClick();
         });
 
+        // khi click vào song
         this.playlist.addEventListener("click", (e) => {
             this.handlePlaylistClick(e);
         });
@@ -439,6 +503,10 @@ const player = {
         // Once the playlist is built, load the first song and render the UI
         if (this.songs.length <= 0) return;
 
+        // khởi tạo unplayedSongIndexes
+        this.unplayedSongIndexes = this.createArray(this.songs.length);
+        this.unplayedSongIndexes.shift();
+
         this.loadCurrentSong();
 
         this.setupEventListeners();
@@ -449,6 +517,10 @@ const player = {
         this.repeatBtn.classList.toggle("active", this.isRepeated);
         // update shuffle button state
         this.shuffleBtn.classList.toggle("active", this.isShuffled);
+        // nếu shuffle đang bật thì xáo trộn mảng
+        if (this.isShuffled) {
+            this.shuffleArray(this.unplayedSongIndexes);
+        }
     },
 
     renderPlaylist() {
