@@ -37,7 +37,6 @@ const player = {
         "./musics/Phố Không Em.mp3",
         "./musics/Chờ Anh Nhé.mp3",
         // "./musics/Stereo Love (Original).mp3",
-        "./musics/EmSeVuiThoiMa.mp3",
         "./musics/KeoBonMua.mp3",
         "./musics/ThichEmNhungMaKhoanYeu.mp3",
         "./musics/Yêu Em Dài Lâu - Yêu 5.mp3",
@@ -263,8 +262,6 @@ const player = {
 
     handleNextClick() {
         this.switchSong(this.NEXT);
-
-        console.log("click: ", Math.random());
     },
 
     handleAudioTimeUpdate() {
