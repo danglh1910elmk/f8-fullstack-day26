@@ -32,14 +32,16 @@ const player = {
 
     songPaths: [
         "./musics/Hey Daddy (Daddy's Home).mp3",
-        // "./musics/So Far Away.mp3",
+        "./musics/So Far Away.mp3",
         "./musics/Những Lời Hứa Bỏ Quên.mp3",
         "./musics/Phố Không Em.mp3",
-        "./musics/Chờ Anh Nhé.mp3",
+        "./musics/Work from Home.mp3",
+        "./musics/sofaraway.mp3",
         // "./musics/Stereo Love (Original).mp3",
-        "./musics/KeoBonMua.mp3",
-        "./musics/ThichEmNhungMaKhoanYeu.mp3",
-        "./musics/Yêu Em Dài Lâu - Yêu 5.mp3",
+        // "./musics/Chờ Anh Nhé.mp3",
+        // "./musics/KeoBonMua.mp3",
+        // "./musics/ThichEmNhungMaKhoanYeu.mp3",
+        // "./musics/Yêu Em Dài Lâu - Yêu 5.mp3",
     ],
 
     songs: [],
@@ -151,6 +153,13 @@ const player = {
         )}`;
     },
 
+    playSong() {
+        this.audioElement.play();
+
+        // remove currentIndex from unplayedSongIndexes array
+        this.removeElementFromUnplayedSongIndexes(this.currentIndex);
+    },
+
     loadCurrentSong() {
         const currentSong = this.songs[this.currentIndex];
         // update song title
@@ -176,7 +185,7 @@ const player = {
     loadRenderAndPlay() {
         this.loadCurrentSong();
         this.renderPlaylist();
-        this.audioElement.play();
+        this.playSong();
 
         // stop rotating cd-thumb
         this.cdThumb.classList.remove("playing");
@@ -197,7 +206,7 @@ const player = {
                 this.currentIndex = this.unplayedSongIndexes[0];
 
                 // xóa phần tử đầu tiên của mảng unplayedSongIndexes
-                this.unplayedSongIndexes.splice(0, 1);
+                this.unplayedSongIndexes.shift();
             } else {
                 // khi this.unplayedSongIndexes.length === 0 --> tất cả đã được phát
 
@@ -212,24 +221,25 @@ const player = {
 
                 // gán currentIndex = phần tử đầu tiên của unplayedSongIndexes, xong rồi xóa luôn
                 this.currentIndex = this.unplayedSongIndexes[0];
-                this.removeElementFromUnplayedSongIndexes(this.currentIndex);
+                this.unplayedSongIndexes.shift();
+
+                // xử lý trường hợp chỉ có 1 bài hát
+                if (this.songs.length === 1) this.currentIndex = 0;
             }
         } else {
             // không bật shuffle
             this.currentIndex =
                 (this.currentIndex + direction + this.songs.length) %
                 this.songs.length;
-
-            // xóa phần tử currentIndex khỏi mảng unplayedSongIndexes
-            this.removeElementFromUnplayedSongIndexes(this.currentIndex);
         }
+
         this.loadRenderAndPlay();
     },
 
     // ===== HANDLERS =====
     handlePlayPauseClick() {
         if (this.audioElement.paused) {
-            this.audioElement.play();
+            this.playSong();
         } else {
             this.audioElement.pause();
         }
@@ -400,12 +410,11 @@ const player = {
 
     handlePlaylistClick(e) {
         const song = e.target.closest(".song");
-        if (!song) return;
+        const option = e.target.closest(".option");
+
+        if (!song || option) return; // không có song hoặc có option thì return
 
         this.currentIndex = +song.dataset.index; // convert to number
-
-        // xóa phần tử currentIndex hiện tại khỏi mảng unplayedSongIndexes
-        this.removeElementFromUnplayedSongIndexes(this.currentIndex);
 
         this.loadRenderAndPlay();
     },
@@ -423,6 +432,18 @@ const player = {
         } else if (e.key === "ArrowRight") {
             this.switchSong(this.NEXT);
         }
+    },
+
+    handleWindowScroll() {
+        let newCDWidth = 200 - window.scrollY;
+        let newCDHeight = 200 - window.scrollY;
+
+        if (newCDWidth < 0) newCDWidth = 0;
+        if (newCDHeight < 0) newCDHeight = 0;
+
+        // update cd-thumb size;
+        this.cdThumb.style.width = newCDWidth + "px";
+        this.cdThumb.style.height = newCDHeight + "px";
     },
 
     setupEventListeners() {
@@ -491,6 +512,11 @@ const player = {
         document.addEventListener("keydown", (e) => {
             this.handleDocumentKeyDown(e);
         });
+
+        // chức năng cuộn xuống thì thu nhỏ cb-thumb
+        window.addEventListener("scroll", () => {
+            this.handleWindowScroll();
+        });
     },
 
     async initialize() {
@@ -502,7 +528,6 @@ const player = {
 
         // khởi tạo unplayedSongIndexes
         this.unplayedSongIndexes = this.createArray(this.songs.length);
-        this.unplayedSongIndexes.shift();
 
         this.loadCurrentSong();
 
