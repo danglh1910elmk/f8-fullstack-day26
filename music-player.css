@@ -133,18 +133,17 @@ header .song-artist {
 /* progress bar  */
 .progress-bar-container {
     margin-top: 10px;
-    display: flex;
     padding: 0 10px;
+
+    display: flex;
+    align-items: center;
     column-gap: 10px;
 }
 
 .progress-bar-wrapper {
-    width: calc(100% - 30px);
-    margin-left: auto;
-    margin-right: auto;
+    width: 100%;
     padding: 8px 0;
     cursor: pointer;
-    position: relative;
 }
 
 .progress-bar-wrapper:hover .slider {
@@ -152,8 +151,15 @@ header .song-artist {
 }
 
 .progress-bar-wrapper:hover .inner-progress-bar {
-    /* background: #1db954; */
     background: var(--primary-color);
+}
+
+.progress-bar-wrapper.is-seeking .inner-progress-bar {
+    background: #ec1f55;
+}
+
+.progress-bar-wrapper.is-seeking .slider {
+    visibility: visible;
 }
 
 .progress-bar {
@@ -161,16 +167,15 @@ header .song-artist {
     height: 6px;
     border-radius: 5px;
     background: #ccc;
-
-    overflow: hidden;
 }
 
 .inner-progress-bar {
-    width: 100%;
+    width: 0%;
     height: 100%;
     border-radius: 5px;
     background: #6b6868;
-    translate: -100%;
+
+    position: relative;
 }
 
 .slider {
@@ -184,8 +189,8 @@ header .song-artist {
 
     position: absolute;
     top: 50%;
-    transform: translateY(-50%);
-    margin-left: calc(-1 * var(--slider-size) / 2);
+    right: 0;
+    translate: 50% -50%;
 }
 
 .playlist {

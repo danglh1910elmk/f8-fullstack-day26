@@ -136,9 +136,32 @@ const player = {
         return array;
     },
 
-    getProgressBarCoord(element) {
-        const rect = element.getBoundingClientRect();
-        return [rect.left, rect.left + element.offsetWidth];
+    calculateProgressPercentage(e) {
+        const rect = this.progressBar.getBoundingClientRect();
+        const progressbarWidth = rect.width;
+        const leftProgressBarCoord = rect.left; // left edge X-coordinate of progress bar
+        const currentXCoord = e.clientX; // mouse X-coordinate
+
+        let progressPercentage =
+            ((currentXCoord - leftProgressBarCoord) * 100) / progressbarWidth;
+
+        // clamp progressPercentage between 0% and 100%
+        if (progressPercentage < 0) progressPercentage = 0;
+        else if (progressPercentage > 100) progressPercentage = 100;
+
+        return progressPercentage;
+    },
+
+    updateProgressPreview(percentage) {
+        if (Number.isNaN(this.audioElement.duration)) return;
+
+        // update innerProgressBar width
+        this.innerProgressBar.style.width = `${percentage}%`;
+
+        // update elapsedTime text
+        this.elapsedTime.textContent = this.formatTime(
+            (this.audioElement.duration * percentage) / 100
+        );
     },
 
     formatTime(sec) {
@@ -281,58 +304,34 @@ const player = {
         // hoặc người dùng đang tua thì không update progress bar
         if (!duration || this.isSeeking) return;
 
-        // update elapsedTime
+        // update elapsedTime text
         this.elapsedTime.textContent = this.formatTime(
             this.audioElement.currentTime
         );
 
-        const progressbarWidth = this.progressBar.offsetWidth;
-
-        // quãng đường inner progressbar và slider cần di chuyển
-        const distanceX = progressbarWidth * (currentTime / duration); // pixel
-
-        // move innerProgressBar
-        this.innerProgressBar.style.translate = `${
-            distanceX - progressbarWidth
-        }px`;
-
-        // update slider position
-        this.slider.style.left = `${distanceX}px`;
+        // update innerProgressBar width
+        const percentage = (100 * currentTime) / duration;
+        this.innerProgressBar.style.width = `${percentage}%`;
     },
 
-    handleProgressBarMouseDown() {
+    handleProgressBarMouseDown(e) {
         this.isSeeking = true;
 
         // style innerProgressBar + slider
-        this.innerProgressBar.style.background = "#ec1f55"; // #1db954
-        this.slider.style.visibility = "visible";
+        this.progressBar.classList.add("is-seeking");
+        this.slider.classList.add("is-seeking");
+
+        const progressPercentage = this.calculateProgressPercentage(e);
+        this.updateProgressPreview(progressPercentage);
     },
 
     handleDocumentMouseUp(e) {
         if (this.isSeeking) {
             // reset style for innerProgressBar + slider
-            this.innerProgressBar.style.background = null;
-            this.slider.style.visibility = null;
+            this.progressBar.classList.remove("is-seeking");
+            this.slider.classList.remove("is-seeking");
 
-            // tính toán audio.currentTime dựa trên vị trí nhả chuột
-            let progressPercentage;
-            const currentXCoord = e.clientX;
-            const progressbarWidth = this.progressBar.offsetWidth;
-
-            // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
-            // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
-            const [leftProgressBarCoord, rightProgressBarCoord] =
-                this.getProgressBarCoord(this.progressBar);
-
-            if (currentXCoord < leftProgressBarCoord) {
-                progressPercentage = 0;
-            } else if (currentXCoord > rightProgressBarCoord) {
-                progressPercentage = 100;
-            } else {
-                progressPercentage =
-                    ((currentXCoord - leftProgressBarCoord) * 100) /
-                    progressbarWidth;
-            }
+            const progressPercentage = this.calculateProgressPercentage(e);
 
             // update audio currentTime
             this.audioElement.currentTime =
@@ -344,34 +343,8 @@ const player = {
 
     handleDocumentMouseMove(e) {
         if (this.isSeeking) {
-            const currentXCoord = e.clientX; // tọa độ chuột trục X
-            const progressbarWidth = this.progressBar.offsetWidth;
-
-            // leftProgressBarCoord: tọa độ theo trục X của điểm đầu của progressBar
-            // rightProgressBarCoord: tọa độ theo trục X của điểm cuối của progressBar
-            const [leftProgressBarCoord, rightProgressBarCoord] =
-                this.getProgressBarCoord(this.progressBar);
-
-            // quãng đường cần di chuyển cho innerProgressBar và slider
-            const distanceX = currentXCoord - leftProgressBarCoord;
-
-            // tọa độ chuột trong khoảng cho phép thì di chuyển innerProgressBar và slider
-            // tọa độ điểm đầu progressBar <= currentXCoord <= tọa độ điểm cuối progressBar
-            if (
-                currentXCoord >= leftProgressBarCoord &&
-                currentXCoord <= rightProgressBarCoord
-            ) {
-                // di chuyển innerProgressBar
-                this.innerProgressBar.style.translate = `${
-                    distanceX - progressbarWidth
-                }px`;
-                // update slider position
-                this.slider.style.left = `${distanceX}px`;
-                // update elapsedTime
-                this.elapsedTime.textContent = this.formatTime(
-                    (this.audioElement.duration * distanceX) / progressbarWidth
-                );
-            }
+            const progressPercentage = this.calculateProgressPercentage(e);
+            this.updateProgressPreview(progressPercentage);
         }
     },
 
@@ -476,8 +449,8 @@ const player = {
         });
 
         // REWIND/FORWARD FEATURE
-        this.progressBar.addEventListener("mousedown", () => {
-            this.handleProgressBarMouseDown();
+        this.progressBar.addEventListener("mousedown", (e) => {
+            this.handleProgressBarMouseDown(e);
         });
 
         document.addEventListener("mouseup", (e) => {
